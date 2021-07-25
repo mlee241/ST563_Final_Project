@@ -1,0 +1,153 @@
+---
+title: "Final Project: Analysis of Wine Quality Data"
+author: "Dan Haine, Marcus Lee, Alex Prevatte"
+date: "7/24/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Appendix
+
+```{r}
+# The wine data
+# Method of analysis
+# Any relevant comparison between the methods
+# Findings
+# Any issues that came up
+```
+
+```{r, message=FALSE, warning=FALSE}
+# Reading in the libraries
+library(tidyverse)
+library(dplyr)
+library(caret)
+library(readr)
+library(knitr)
+library(regclass)
+library(formatR)
+```
+
+```{r}
+# Reading in the dataset
+red <- read.csv("winequality-red.csv", sep=";")
+str(red)
+```
+
+```{r}
+# Setting seed for reproducibility 
+set.seed(123)
+# wine_data$quality <- as.factor(wine_data$quality)
+
+# Dividing the data randomly into two sets
+# A training set that I will use to fit the models
+# A test set that will be used to evaluate the methods.
+trainIndex <- createDataPartition(red$quality, p = 0.7,
+list = FALSE)
+train.red <- red[trainIndex, ]
+test.red <- red[-trainIndex, ]
+```
+
+
+## Multiple Linear Regression
+
+```{r}
+wine_quality_model = lm(quality ~ alcohol + volatile.acidity + sulphates,
+data = train.red)
+summary(wine_quality_model)
+```
+
+```{r}
+anova(wine_quality_model)
+```
+
+```{r}
+# This multiple linear regression model that Marcus ran had the smallest VIF
+VIF(wine_quality_model)
+```
+
+```{r}
+# Using cross validation to select my model
+fit <- train(quality ~ alcohol + volatile.acidity + sulphates,
+data = train.red, method = "lm", preProcess = c("center",
+"scale"), trControl = trainControl(method = "cv", number = 5))
+fit$results
+```
+
+```{r}
+# Seeing how well Marcus model performs on the test set using squared error loss(RMSE) for MLR
+
+# MLR
+pred1 <- predict(fit, newdata=test.red)
+postResample(pred1, obs = test.red$quality)
+```
+
+## Logistic Regression
+
+```{r}
+# Setting seed for reproducibility 
+set.seed(123)
+
+red2 <- red
+red2$quality <- ifelse(red$quality >= 6, 1, 0)
+red2$quality <- as.factor(red2$quality)
+
+# Dividing the data randomly into two sets
+# A training set that I will use to fit the models
+# A test set that will be used to evaluate the methods.
+trainIndex2 <- createDataPartition(red2$quality, p = 0.7,
+list = FALSE)
+train.red2 <- red2[trainIndex2, ]
+test.red2 <- red2[-trainIndex2, ]
+```
+
+```{r}
+# Fitting a binary logistic regresison model
+model <- glm(quality ~ alcohol + volatile.acidity + sulphates +
+I(volatile.acidity^2), data = train.red2, family = "binomial")
+
+# Model Summary
+summary(model)
+
+# Response: This has a very low AIC
+```
+
+
+```{r}
+# Logistic regression model fitting
+logfit <- train(quality ~ alcohol + volatile.acidity + sulphates +
+I(volatile.acidity^2), data = train.red2, method = "glm",
+family = "binomial", preProcess = c("center", "scale"), trControl = trainControl(method = "cv",
+number = 5))
+
+logfit
+```
+
+```{r}
+# Seeing how well Marcus model perfomrs on the test set using accuracy for the logistic modeling
+
+confusionMatrix(data = test.red2$quality, reference = predict(logfit,
+newdata = test.red2))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
