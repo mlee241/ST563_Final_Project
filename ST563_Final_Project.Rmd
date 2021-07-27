@@ -126,11 +126,56 @@ logfit
 ```
 
 ```{r}
-# Seeing how well Marcus model perfomrs on the test set using accuracy for the logistic modeling
+# Seeing how well Marcus model performs on the test set using accuracy for the logistic modeling
 
 confusionMatrix(data = test.red2$quality, reference = predict(logfit,
 newdata = test.red2))
 ```
+
+
+# Classification tree
+
+```{r}
+trctrl <- trainControl(method= "repeatedcv", number = 10, repeats = 3)
+# Create a classification tree
+cTree <- train(quality ~ ., method = "rpart", trControl = trctrl, data = train.red2,
+               preProcess = c("center", "scale"))
+cTree
+```
+
+```{r}
+# predict the values for our respone variable and compare it to our\ testing data
+cTree_pred <- predict(cTree, newdata=select(test.red2,-quality))
+# a frequency of how many of each response there is.
+cTreepred <- table(cTree_pred, test.red2$quality)
+#cTreepred
+
+misclass1 <- 1- (sum(diag(cTreepred))/sum(cTreepred))
+misclass1
+```
+
+
+# Random Forest model
+
+```{r}
+# Create a random forest model
+rforest <- train(quality ~ . , method = "rf", trControl = trctrl, data = train.red2, preProcess = c("center", "scale"))
+
+rforest
+```
+
+```{r}
+# Predict the values for our response variable and compare it to our testing data.
+rforest_pred <- predict(rforest, newdata = select(test.red2,-quality))
+
+# a frequency of how many of each respons]e there is.
+rfpred <- table(rforest_pred, test.red2$quality)
+
+misclass2 <- 1- (sum(diag(rfpred))/sum(rfpred))
+misclass2
+```
+
+
 
 
 
