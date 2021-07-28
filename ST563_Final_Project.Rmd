@@ -132,6 +132,11 @@ confusionMatrix(data = test.red2$quality, reference = predict(logfit,
 newdata = test.red2))
 ```
 
+```{r}
+misclass0 <- 1- ((160+180)/(160+63+76+180))
+misclass0
+```
+
 
 # Classification tree
 
