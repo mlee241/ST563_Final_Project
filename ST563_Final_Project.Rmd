@@ -1,11 +1,11 @@
 ---
-title: "Final Project: Analysis of Wine Quality Data"
-author: "Dan Haine, Marcus Lee, Alex Prevatte"
+  title: "Final Project: Analysis of Wine Quality Data"
+author: "Dan Haines, Marcus Lee, Alex Prevatte"
 date: "7/24/2021"
 output: pdf_document
 ---
-
-```{r setup, include=FALSE}
+  
+  ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -30,6 +30,8 @@ library(regclass)
 library(formatR)
 library(e1071)
 library(kernlab)
+library(ROCR)
+library(gridExtra)
 ```
 
 ```{r}
@@ -42,12 +44,11 @@ str(red)
 # Setting seed for reproducibility 
 set.seed(123)
 # wine_data$quality <- as.factor(wine_data$quality)
-
 # Dividing the data randomly into two sets
 # A training set that I will use to fit the models
 # A test set that will be used to evaluate the methods.
 trainIndex <- createDataPartition(red$quality, p = 0.7,
-list = FALSE)
+                                  list = FALSE)
 train.red <- red[trainIndex, ]
 test.red <- red[-trainIndex, ]
 ```
@@ -56,34 +57,33 @@ test.red <- red[-trainIndex, ]
 ## Multiple Linear Regression
 
 ```{r}
-wine_quality_model = lm(quality ~ alcohol + volatile.acidity + sulphates,
-data = train.red)
-summary(wine_quality_model)
-```
+# select the model using best subset selection
+regfit_best = regsubsets(quality~., data=train.red, nvmax=11)
 
-```{r}
-anova(wine_quality_model)
-```
+# create a test matrix
+test_mat = model.matrix(quality~., data=test.red)
 
-```{r}
-# This multiple linear regression model that Marcus ran had the smallest VIF
-VIF(wine_quality_model)
-```
+# create a vector to contain all test MSE
+val_errors = rep(NA,11)
 
-```{r}
-# Using cross validation to select my model
-fit <- train(quality ~ alcohol + volatile.acidity + sulphates,
-data = train.red, method = "lm", preProcess = c("center",
-"scale"), trControl = trainControl(method = "cv", number = 5))
-fit$results
-```
+# calculate the test MSE for the best model of each size
+for(i in 1:11){
+  coefi=coef(regfit_best, id=i)
+  pred=test_mat[,names(coefi)]%*%coefi
+  val_errors[i]=sqrt(mean((test.red$quality-pred)^2))
+}
 
-```{r}
-# Seeing how well Marcus model performs on the test set using squared error loss(RMSE) for MLR
+# plot the test MSE by variable number
+plot(seq(1:11), val_errors, type='b',
+     ylab='RMSE',
+     xlab='Number of Variables',
+     main='Test RMSE from Best Subset Selection')
 
-# MLR
-pred1 <- predict(fit, newdata=test.red)
-postResample(pred1, obs = test.red$quality)
+# get the coefficient estimates for the 6-variable model
+coef(regfit_best, 6)
+
+# obtain the test RMSE for the final model
+val_errors[6]
 ```
 
 ## Logistic Regression
@@ -91,7 +91,6 @@ postResample(pred1, obs = test.red$quality)
 ```{r}
 # Setting seed for reproducibility 
 set.seed(123)
-
 red2 <- red
 red2$quality <- ifelse(red$quality >= 6, 1, 0)
 red2$quality <- as.factor(red2$quality)
@@ -100,7 +99,7 @@ red2$quality <- as.factor(red2$quality)
 # A training set that I will use to fit the models
 # A test set that will be used to evaluate the methods.
 trainIndex2 <- createDataPartition(red2$quality, p = 0.7,
-list = FALSE)
+                                   list = FALSE)
 train.red2 <- red2[trainIndex2, ]
 test.red2 <- red2[-trainIndex2, ]
 ```
@@ -108,11 +107,9 @@ test.red2 <- red2[-trainIndex2, ]
 ```{r}
 # Fitting a binary logistic regresison model
 model <- glm(quality ~ alcohol + volatile.acidity + sulphates +
-I(volatile.acidity^2), data = train.red2, family = "binomial")
-
+               I(volatile.acidity^2), data = train.red2, family = "binomial")
 # Model Summary
 summary(model)
-
 # Response: This has a very low AIC
 ```
 
@@ -120,18 +117,19 @@ summary(model)
 ```{r}
 # Logistic regression model fitting
 logfit <- train(quality ~ alcohol + volatile.acidity + sulphates +
-I(volatile.acidity^2), data = train.red2, method = "glm",
-family = "binomial", preProcess = c("center", "scale"), trControl = trainControl(method = "cv",
-number = 5))
-
+                  I(volatile.acidity^2), data = train.red2, method = "glm",
+                family = "binomial", preProcess = c("center", "scale"), trControl = trainControl(method = "cv",
+                                                                                                 number = 5))
 logfit
 ```
 
 ```{r}
 # Seeing how well Marcus model performs on the test set using accuracy for the logistic modeling
+log_conf = confusionMatrix(data = test.red2$quality, reference = predict(logfit,
+                           newdata = test.red2))
 
-confusionMatrix(data = test.red2$quality, reference = predict(logfit,
-newdata = test.red2))
+# produce a kable
+kable(log_conf$table, caption="Confusion Matrix\nfor Logistic Regression ")
 ```
 
 ```{r}
@@ -148,6 +146,10 @@ trctrl <- trainControl(method= "repeatedcv", number = 10, repeats = 3)
 cTree <- train(quality ~ ., method = "rpart", trControl = trctrl, data = train.red2,
                preProcess = c("center", "scale"))
 cTree
+
+# plot the final tree model
+plot(cTree$finalModel)
+text(cTree$finalModel)
 ```
 
 ```{r}
@@ -156,9 +158,11 @@ cTree_pred <- predict(cTree, newdata=select(test.red2,-quality))
 # a frequency of how many of each response there is.
 cTreepred <- table(cTree_pred, test.red2$quality)
 #cTreepred
-
 misclass1 <- 1- (sum(diag(cTreepred))/sum(cTreepred))
 misclass1
+
+# produce a kable
+kable(cTreepred, caption="Confusion Matrix\nfor Classification Tree")
 ```
 
 
@@ -167,7 +171,6 @@ misclass1
 ```{r}
 # Create a random forest model
 rforest <- train(quality ~ . , method = "rf", trControl = trctrl, data = train.red2, preProcess = c("center", "scale"))
-
 rforest
 ```
 
@@ -177,14 +180,19 @@ rforest_pred <- predict(rforest, newdata = select(test.red2,-quality))
 
 # a frequency of how many of each respons]e there is.
 rfpred <- table(rforest_pred, test.red2$quality)
-
 misclass2 <- 1- (sum(diag(rfpred))/sum(rfpred))
 misclass2
+
+# produce a kable
+kable(rfpred, caption="Confusion Matrix\nfor Random Forest")
 ```
 
 # K-Nearest Neighbors
 ```{r}
 ### KNN - Classification
+
+# set global training control options
+train_control = trainControl(method='cv', number=5)
 
 # fit the model
 knn_class_fit <- train(quality ~ .,
@@ -195,22 +203,32 @@ knn_class_fit <- train(quality ~ .,
                        data=train.red2)
 
 # predict on the KNN classification model
-confusionMatrix(data=test.red2$quality, 
-                reference=predict(knn_class_fit,newdata=test.red2))
+knn_conf = confusionMatrix(data=test.red2$quality, 
+                           reference=predict(knn_class_fit,newdata=test.red2))
+
+# produce a kable
+kable(knn_conf$table, caption="Confusion Matrix\nfor KNN")
 
 ### KNN - Regression
 
-# fit the model
-knn_reg_fit <- train(quality ~ .,
-                     method='knn',
-                     tuneGrid=expand.grid(k=1:10),
-                     trControl=train_control,
-                     metric="RMSE",
-                     data=train.red)
+# Calculate test MSE for K values
+knn_RMSE = rep(NA,10)
+for(i in 1:10){
+  knn_reg_fit <- train(quality ~ .,
+                       method='knn',
+                       tuneGrid=expand.grid(k=i),
+                       trControl=train_control,
+                       metric="RMSE",
+                       data=train.red)
+  knn_preds = predict(knn_reg_fit, newdata=test.red)
+  knn_RMSE[i] = RMSE(knn_preds, test.red$quality)
+}
 
-# predict on the KNN regression model
-knn_preds <- predict(knn_reg_fit, newdata=test.red)
-RMSE(knn_preds, test.red$quality)
+# plot the RMSE by K
+plot(seq(1:10), knn_RMSE, type='b',
+     xlab='Value of K',
+     ylab='RMSE',
+     main='Test RMSE by Value of K')
 ```
 
 # Support Vector Machines
@@ -226,12 +244,13 @@ svm_class_linear <- train(quality ~ .,
                           data=train.red2)
 
 # predict on the SVM linear classification model
-confusionMatrix(data=test.red2$quality, 
-                reference=predict(svm_class_linear,newdata=test.red2))
+svm_lin_conf = confusionMatrix(data=test.red2$quality, 
+                               reference=predict(svm_class_linear,newdata=test.red2))
+
+# produce a kable
+kable(svm_lin_conf$table, caption="Confusion Matrix\nfor SVM - Linear")
 
 ### SVM - Linear Regression
-
-# fit the model
 svm_reg_linear <- train(quality ~ .,
                         method='svmLinear',
                         preProcess=c('center','scale'),
@@ -239,7 +258,7 @@ svm_reg_linear <- train(quality ~ .,
                         metric="RMSE",
                         data=train.red)
 
-# predict on the SVM linear regression model
+# predict on the svm linear regression model
 svm_linear_preds <- predict(svm_reg_linear, newdata=test.red)
 RMSE(svm_linear_preds, test.red$quality)
 
@@ -254,8 +273,11 @@ svm_class_poly <- train(quality ~ .,
                         data=train.red2)
 
 # predict on the SVM poly classification model
-confusionMatrix(data=test.red2$quality, 
-                reference=predict(svm_class_poly,newdata=test.red2))
+svm_poly_conf = confusionMatrix(data=test.red2$quality, 
+                                reference=predict(svm_class_poly,newdata=test.red2))
+
+# produce a kable
+kable(svm_poly_conf$table, caption="Confusion Matrix\nfor SVM - Polynomial")
 
 ### SVM - Poly Regression
 
@@ -266,7 +288,6 @@ svm_reg_poly <- train(quality ~ .,
                       trControl=train_control,
                       metric="RMSE",
                       data=train.red)
-
 
 # predict on the svm poly regression model
 svm_poly_preds <- predict(svm_reg_poly, newdata=test.red)
@@ -283,8 +304,12 @@ svm_class_radial <- train(quality ~ .,
                           data=train.red2)
 
 # predict on the SVM radial classification model
-confusionMatrix(data=test.red2$quality, 
-                reference=predict(svm_class_radial,newdata=test.red2))
+svm_radial_conf = confusionMatrix(data=test.red2$quality, 
+                                  reference=predict(svm_class_radial,newdata=test.red2))
+
+# produce a kable
+kable(svm_radial_conf$table, caption="Confusion Matrix\nfor SVM - Radial")
+
 
 ### SVM - Radial Regression
 
@@ -296,28 +321,89 @@ svm_reg_radial <- train(quality ~ .,
                         metric="RMSE",
                         data=train.red)
 
-# predict on the KNN regression model
+# predict on the SVM radial regression model
 svm_radial_preds <- predict(svm_reg_radial, newdata=test.red)
 RMSE(svm_radial_preds, test.red$quality)
 ```
 
+```{r}
+# plot histograms for all variables
+quality = ggplot(red, aes(x=red$quality)) + 
+  geom_histogram(binwidth=1, fill='#CC0000', color='#000000') +
+  xlab('Quality') +
+  ylab('Count') + 
+  ggtitle('Frequency Histogram - Quality')
 
+fixed_acidity = ggplot(red, aes(x=red$fixed.acidity)) + 
+  geom_histogram(binwidth=1, fill='#CC0000', color='#000000') +
+  xlab('Fixed Acidity') +
+  ylab('Count') + 
+  ggtitle('Frequency Histogram - Fixed Acidity')
 
+volatile_acidity = ggplot(red, aes(x=red$volatile.acidity)) + 
+  geom_histogram(fill='#CC0000', color='#000000') +
+  xlab('Volatile Acidity') +
+  ylab('Count') + 
+  ggtitle('Frequency Histogram - Volatile Acidity')
 
+citric_acid = ggplot(red, aes(x=red$citric.acid)) + 
+  geom_histogram(fill='#CC0000', color='#000000') +
+  xlab('Citric Acid') +
+  ylab('Count') + 
+  ggtitle('Frequency Histogram - Citric Acid')
 
+residual_sugar = ggplot(red, aes(x=red$residual.sugar)) + 
+  geom_histogram(fill='#CC0000', color='#000000') +
+  xlab('Residual Sugar') +
+  ylab('Count') + 
+  ggtitle('Frequency Histogram - Residual Sugar')
 
+chorides = ggplot(red, aes(x=red$chlorides)) + 
+  geom_histogram(fill='#CC0000', color='#000000') +
+  xlab('Chlorides') +
+  ylab('Count') + 
+  ggtitle('Frequency Histogram - Chlorides')
 
+free_sulfur = ggplot(red, aes(x=red$free.sulfur.dioxide)) + 
+  geom_histogram(binwidth=1, fill='#CC0000', color='#000000') +
+  xlab('Free Sulfur Dioxide') +
+  ylab('Count') + 
+  ggtitle('Frequency Histogram - Free Sulfur Dioxide')
 
+total_sulfur = ggplot(red, aes(x=red$total.sulfur.dioxide)) + 
+  geom_histogram(binwidth=10, fill='#CC0000', color='#000000') +
+  xlab('Total Sulfur Dioxide') +
+  ylab('Count') + 
+  ggtitle('Frequency Histogram - Total Sulfur Dioxide')
 
+density = ggplot(red, aes(x=red$density)) + 
+  geom_histogram( fill='#CC0000', color='#000000') +
+  xlab('Density') +
+  ylab('Count') + 
+  ggtitle('Frequency Histogram - Density')
 
+ph = ggplot(red, aes(x=red$pH)) + 
+  geom_histogram(binwidth=0.25, fill='#CC0000', color='#000000') +
+  xlab('pH') +
+  ylab('Count') + 
+  ggtitle('Frequency Histogram - pH')
 
+sulphates = ggplot(red, aes(x=red$sulphates)) + 
+  geom_histogram(binwidth=fill='#CC0000', color='#000000') +
+  xlab('Sulphates') +
+  ylab('Count') + 
+  ggtitle('Frequency Histogram - Sulphates')
 
+alcohol = ggplot(red, aes(x=red$alcohol)) + 
+  geom_histogram(binwidth=0.5, fill='#CC0000', color='#000000') +
+  xlab('Alcohol') +
+  ylab('Count') + 
+  ggtitle('Frequency Histogram - Alcohol')
 
+grid.arrange(quality, fixed_acidity, volatile_acidity, citric_acid, residual_sugar, chorides)
+grid.arrange(free_sulfur, total_sulfur, density, ph, sulphates, alcohol)
 
-
-
-
-
-
-
-
+# create a correlation plot
+cor_red = cor(red)
+corrplot(cor_red, method='color', type='upper', addCoef.col='black', diag=FALSE)
+```
