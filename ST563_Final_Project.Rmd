@@ -28,6 +28,8 @@ library(readr)
 library(knitr)
 library(regclass)
 library(formatR)
+library(e1071)
+library(kernlab)
 ```
 
 ```{r}
@@ -180,6 +182,124 @@ misclass2 <- 1- (sum(diag(rfpred))/sum(rfpred))
 misclass2
 ```
 
+# K-Nearest Neighbors
+```{r}
+### KNN - Classification
+
+# fit the model
+knn_class_fit <- train(quality ~ .,
+                       method='knn',
+                       tuneGrid=expand.grid(k=1:10),
+                       trControl=train_control,
+                       metric="Accuracy",
+                       data=train.red2)
+
+# predict on the KNN classification model
+confusionMatrix(data=test.red2$quality, 
+                reference=predict(knn_class_fit,newdata=test.red2))
+
+### KNN - Regression
+
+# fit the model
+knn_reg_fit <- train(quality ~ .,
+                     method='knn',
+                     tuneGrid=expand.grid(k=1:10),
+                     trControl=train_control,
+                     metric="RMSE",
+                     data=train.red)
+
+# predict on the KNN regression model
+knn_preds <- predict(knn_reg_fit, newdata=test.red)
+RMSE(knn_preds, test.red$quality)
+```
+
+# Support Vector Machines
+```{r}
+### SVM - Linear Classification
+
+# fit the model
+svm_class_linear <- train(quality ~ .,
+                          method='svmLinear',
+                          preProcess=c('center','scale'),
+                          trControl=train_control,
+                          metric="Accuracy",
+                          data=train.red2)
+
+# predict on the SVM linear classification model
+confusionMatrix(data=test.red2$quality, 
+                reference=predict(svm_class_linear,newdata=test.red2))
+
+### SVM - Linear Regression
+
+# fit the model
+svm_reg_linear <- train(quality ~ .,
+                        method='svmLinear',
+                        preProcess=c('center','scale'),
+                        trControl=train_control,
+                        metric="RMSE",
+                        data=train.red)
+
+# predict on the SVM linear regression model
+svm_linear_preds <- predict(svm_reg_linear, newdata=test.red)
+RMSE(svm_linear_preds, test.red$quality)
+
+### SVM - Poly Classification
+
+# fit the model
+svm_class_poly <- train(quality ~ .,
+                        method='svmPoly',
+                        preProcess=c('center','scale'),
+                        trControl=train_control,
+                        metric="Accuracy",
+                        data=train.red2)
+
+# predict on the SVM poly classification model
+confusionMatrix(data=test.red2$quality, 
+                reference=predict(svm_class_poly,newdata=test.red2))
+
+### SVM - Poly Regression
+
+# fit the model
+svm_reg_poly <- train(quality ~ .,
+                      method='svmPoly',
+                      preProcess=c('center','scale'),
+                      trControl=train_control,
+                      metric="RMSE",
+                      data=train.red)
+
+
+# predict on the svm poly regression model
+svm_poly_preds <- predict(svm_reg_poly, newdata=test.red)
+RMSE(svm_poly_preds, test.red$quality)
+
+### SVM - Radial Classification
+
+# fit the model
+svm_class_radial <- train(quality ~ .,
+                          method='svmRadial',
+                          preProcess=c('center','scale'),
+                          trControl=train_control,
+                          metric="Accuracy",
+                          data=train.red2)
+
+# predict on the SVM radial classification model
+confusionMatrix(data=test.red2$quality, 
+                reference=predict(svm_class_radial,newdata=test.red2))
+
+### SVM - Radial Regression
+
+# fit the model
+svm_reg_radial <- train(quality ~ .,
+                        method='svmRadial',
+                        preProcess=c('center','scale'),
+                        trControl=train_control,
+                        metric="RMSE",
+                        data=train.red)
+
+# predict on the KNN regression model
+svm_radial_preds <- predict(svm_reg_radial, newdata=test.red)
+RMSE(svm_radial_preds, test.red$quality)
+```
 
 
 
