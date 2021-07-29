@@ -1,23 +1,12 @@
 ---
-  title: "Final Project: Analysis of Wine Quality Data"
-author: "Dan Haines, Marcus Lee, Alex Prevatte"
-date: "7/24/2021"
 output: pdf_document
 ---
   
-  ```{r setup, include=FALSE}
+```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # Appendix
-
-```{r}
-# The wine data
-# Method of analysis
-# Any relevant comparison between the methods
-# Findings
-# Any issues that came up
-```
 
 ```{r, message=FALSE, warning=FALSE}
 # Reading in the libraries
@@ -32,6 +21,7 @@ library(e1071)
 library(kernlab)
 library(ROCR)
 library(gridExtra)
+library(corrplot)
 ```
 
 ```{r}
@@ -53,6 +43,7 @@ train.red <- red[trainIndex, ]
 test.red <- red[-trainIndex, ]
 ```
 
+\pagebreak
 
 ## Multiple Linear Regression
 
@@ -78,7 +69,11 @@ plot(seq(1:11), val_errors, type='b',
      ylab='RMSE',
      xlab='Number of Variables',
      main='Test RMSE from Best Subset Selection')
+```
 
+\pagebreak
+
+```{r}
 # get the coefficient estimates for the 6-variable model
 coef(regfit_best, 6)
 
@@ -114,7 +109,7 @@ summary(model)
 ```
 
 
-```{r}
+```{r,tidy=TRUE, tidy.opts=list(width.cutoff=60)}
 # Logistic regression model fitting
 logfit <- train(quality ~ alcohol + volatile.acidity + sulphates +
                   I(volatile.acidity^2), data = train.red2, method = "glm",
@@ -123,7 +118,7 @@ logfit <- train(quality ~ alcohol + volatile.acidity + sulphates +
 logfit
 ```
 
-```{r}
+```{r,tidy=TRUE, tidy.opts=list(width.cutoff=60)}
 # Seeing how well Marcus model performs on the test set using accuracy for the logistic modeling
 log_conf = confusionMatrix(data = test.red2$quality, reference = predict(logfit,
                            newdata = test.red2))
@@ -162,13 +157,14 @@ misclass1 <- 1- (sum(diag(cTreepred))/sum(cTreepred))
 misclass1
 
 # produce a kable
-kable(cTreepred, caption="Confusion Matrix\nfor Classification Tree")
+kable(cTreepred, caption="Confusion Matrix for Classification Tree")
 ```
 
+\pagebreak
 
 # Random Forest model
 
-```{r}
+```{r,tidy=TRUE, tidy.opts=list(width.cutoff=60)}
 # Create a random forest model
 rforest <- train(quality ~ . , method = "rf", trControl = trctrl, data = train.red2, preProcess = c("center", "scale"))
 rforest
@@ -186,6 +182,8 @@ misclass2
 # produce a kable
 kable(rfpred, caption="Confusion Matrix\nfor Random Forest")
 ```
+
+\pagebreak
 
 # K-Nearest Neighbors
 ```{r}
@@ -326,7 +324,7 @@ svm_radial_preds <- predict(svm_reg_radial, newdata=test.red)
 RMSE(svm_radial_preds, test.red$quality)
 ```
 
-```{r}
+```{r, warning=FALSE}
 # plot histograms for all variables
 quality = ggplot(red, aes(x=red$quality)) + 
   geom_histogram(binwidth=1, fill='#CC0000', color='#000000') +
@@ -389,7 +387,7 @@ ph = ggplot(red, aes(x=red$pH)) +
   ggtitle('Frequency Histogram - pH')
 
 sulphates = ggplot(red, aes(x=red$sulphates)) + 
-  geom_histogram(binwidth=fill='#CC0000', color='#000000') +
+  geom_histogram(binwidth=0.25,fill='#CC0000', color='#000000') +
   xlab('Sulphates') +
   ylab('Count') + 
   ggtitle('Frequency Histogram - Sulphates')
@@ -402,8 +400,13 @@ alcohol = ggplot(red, aes(x=red$alcohol)) +
 
 grid.arrange(quality, fixed_acidity, volatile_acidity, citric_acid, residual_sugar, chorides)
 grid.arrange(free_sulfur, total_sulfur, density, ph, sulphates, alcohol)
+```
 
+\pagebreak
+
+```{r, dpi=400}
 # create a correlation plot
 cor_red = cor(red)
 corrplot(cor_red, method='color', type='upper', addCoef.col='black', diag=FALSE)
 ```
+
